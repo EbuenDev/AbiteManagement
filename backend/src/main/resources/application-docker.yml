@@ -1,0 +1,8 @@
+spring:
+  config:
+    activate:
+      on-profile: docker
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:postgres}:${POSTGRES_PORT:5432}/${POSTGRES_DB:auth_db}
+    username: ${POSTGRES_USER:auth_app}
+    password: ${POSTGRES_PASSWORD:auth_password}

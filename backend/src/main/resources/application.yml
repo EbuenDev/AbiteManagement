@@ -1,0 +1,67 @@
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /
+    session:
+      timeout: ${SESSION_TIMEOUT_MINUTES:15}m
+      cookie:
+        name: JSESSIONID
+        http-only: true
+        secure: ${COOKIE_SECURE:false}
+        same-site: STRICT
+        path: /
+
+spring:
+  application:
+    name: enterprise-auth-system
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:auth_db}
+    username: ${POSTGRES_USER:auth_app}
+    password: ${POSTGRES_PASSWORD:auth_password}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+# Actuator Endpoints for health and metrics
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when_authorized
+
+# Custom Enterprise Application Configuration
+app:
+  security:
+    master-encryption-key: ${APP_ENCRYPTION_MASTER_KEY:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+    pre-auth-nonce-ttl-seconds: 60
+    challenge-ttl-seconds: 300
+    max-challenge-attempts: 3
+    password-reset-ttl-minutes: 15
+  bootstrap:
+    superadmin:
+      enabled: ${BOOTSTRAP_SUPERADMIN_ENABLED:true}
+      username: ${BOOTSTRAP_SUPERADMIN_USERNAME:superadmin}
+      email: ${BOOTSTRAP_SUPERADMIN_EMAIL:superadmin@enterprise.local}
+      password: ${BOOTSTRAP_SUPERADMIN_PASSWORD:SuperAdmin#2026!ChangeMeNow}

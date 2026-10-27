@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: enterprise_auth_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-auth_db}
+      POSTGRES_USER: ${POSTGRES_USER:-auth_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ChangeThisToASecurePasswordInProd!2026}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-auth_app} -d ${POSTGRES_DB:-auth_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - auth_internal_net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend/Dockerfile
+    container_name: enterprise_auth_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8080
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-auth_db}
+      POSTGRES_USER: ${POSTGRES_USER:-auth_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ChangeThisToASecurePasswordInProd!2026}
+      APP_ENCRYPTION_MASTER_KEY: ${APP_ENCRYPTION_MASTER_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      BOOTSTRAP_SUPERADMIN_ENABLED: ${BOOTSTRAP_SUPERADMIN_ENABLED:-true}
+      BOOTSTRAP_SUPERADMIN_USERNAME: ${BOOTSTRAP_SUPERADMIN_USERNAME:-superadmin}
+      BOOTSTRAP_SUPERADMIN_EMAIL: ${BOOTSTRAP_SUPERADMIN_EMAIL:-superadmin@enterprise.local}
+      BOOTSTRAP_SUPERADMIN_PASSWORD: ${BOOTSTRAP_SUPERADMIN_PASSWORD:-SuperAdmin#2026!ChangeMeNow}
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - auth_internal_net
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  auth_internal_net:
+    driver: bridge
