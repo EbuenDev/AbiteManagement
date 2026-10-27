@@ -9,3 +9,8 @@ spring:
       ddl-auto: create-drop
   flyway:
     enabled: false
+
+app:
+  bootstrap:
+    superadmin:
+      enabled: false

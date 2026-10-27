@@ -10,9 +10,9 @@ WORKDIR /workspace
 COPY pom.xml .
 RUN mvn dependency:go-offline -B
 
-# Compile and package application
+# Compile, test, and package application
 COPY src ./src
-RUN mvn clean package -DskipTests -B
+RUN mvn clean package -B
 
 # --- Stage 2: Hardened Runtime ---
 FROM eclipse-temurin:21-jre-jammy
