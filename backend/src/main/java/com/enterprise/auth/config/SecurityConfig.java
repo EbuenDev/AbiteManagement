@@ -30,7 +30,7 @@ public class SecurityConfig {
             // CSRF Protection via CookieCsrfTokenRepository (readable by frontend for API requests)
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                .ignoringRequestMatchers("/actuator/health", "/api/health")
+                .ignoringRequestMatchers("/actuator/health", "/api/health", "/api/auth/**")
             )
             // Session Management
             .sessionManagement(session -> session

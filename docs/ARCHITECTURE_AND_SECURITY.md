@@ -31,6 +31,21 @@ Instead of transmitting the static password, the client and server engage in a z
      - **Pre-image resistance**: The attacker cannot reverse `EphemeralProof` to recover `ClientKey` or `password`.
      - **Anti-replay**: The `serverNonce` is single-use and destroyed atomically by the server upon first evaluation. Subsequent attempts with the same payload fail immediately.
 
+### 2.3 Stage 4 Concrete Implementation
+1. **Pre-Login Handshake (`GET /api/auth/pre-login?identifier=...`)**:
+   - Generates an ephemeral RSA-2048 keypair and single-use 256-bit `serverNonce` with 60-second TTL.
+   - Defeats user enumeration by generating a deterministic synthetic salt for non-existent users so response payloads and timings remain consistent.
+   - Returns `{ serverNonce, clientSalt, publicKey, timestamp }`.
+
+2. **Step 1 Login Verification (`POST /api/auth/login`)**:
+   - Supports both Ephemeral Clone Key payload (RSA-OAEP encrypted `{password}:{serverNonce}:{timestamp}`) and direct password (for test harnesses/API integrations).
+   - Atomic consumption and burning of `serverNonce` prevents replay attacks.
+   - Enforces sliding-window rate limiting via Bucket4j token bucket (5 attempts / min / IP + user).
+   - Verifies against Argon2id password hash (`m=65536, t=3, p=1`).
+   - Mitigates user-existence timing side-channels via synthetic Argon2 verification against non-existent users.
+   - Enforces 5-failure threshold: account is locked for 15 minutes (`locked_until`), logged in `audit_logs` as `ACCOUNT_LOCKED`.
+   - On success: issues a 256-bit random `challengeToken` (persisted in `auth_challenges` as SHA-256 hash with 300s TTL) and returns `{ challengeToken, mfaRequired: true, expiresAt }`. No session or security context is established.
+
 ---
 
 ## 3. Two-Step Authentication & Pending Challenge
