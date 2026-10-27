@@ -40,6 +40,7 @@ public class SecurityConfig {
             )
             // Endpoint Authorization Rules
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/assets/**", "/favicon.ico").permitAll()
                 .requestMatchers("/actuator/health", "/api/health").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .anyRequest().authenticated()

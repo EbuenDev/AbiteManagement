@@ -107,3 +107,29 @@ Full session establishment is strictly isolated into two distinct phases:
 - **ROLE_SUPER_ADMIN**: Manages Admin and Staff accounts, inspects security audit logs, controls authentication policies.
 - **ROLE_ADMIN**: Manages Staff accounts, accesses administrative dashboards. Cannot elevate privileges or modify Super Admin accounts.
 - **ROLE_STAFF**: Standard business operations; zero access to user administration.
+
+---
+
+## 6. Frontend Architecture & Clinical UI (Stage 6)
+
+### 6.1 Clinical Aesthetic Design
+- **Domain Focus**: Designed specifically for the **Animal Bite Treatment Center (ABTC)** clinical portal.
+- **Visual Tone**: Clean, calm, medical-grade healthcare UI. High-contrast typography (`Inter`), clean hospital blue (`#0284c7`), clinical teal (`#0d9488`), and soft slate backgrounds (`#f8fafc`).
+- **Accessibility**: Avoids distracting neon animations or overly dark cyber styling; emphasizes legibility, WCAG contrast standards, structured forms, and clear step-by-step progress bars.
+
+### 6.2 Browser-Native Web Crypto Engine (`crypto-client.js`)
+- Uses `window.crypto.subtle` with zero third-party dependencies.
+- Implements the **Clone Key** ephemeral handshake:
+  1. Requests `serverNonce`, `clientSalt`, `publicKey`, and `timestamp` from `GET /api/auth/pre-login`.
+  2. Binds raw password into `{password}:{serverNonce}:{timestamp}`.
+  3. Encrypts payload with `RSA-OAEP` (SHA-256) using the server's ephemeral public key.
+  4. Immediately zeroes and clears raw password from input fields and browser memory.
+  5. Transmits single-use `cloneKey` to `POST /api/auth/login`.
+
+### 6.3 State & Session Management (`app.js` & `api.js`)
+- Automatically reads and attaches `XSRF-TOKEN` header on state-changing API calls.
+- Enforces strict two-step progression: Step 1 (Staff Credentials) -> Step 2 (6-digit TOTP / Backup Recovery Code).
+- Automatic modal for first-time TOTP enrollment: displays QR code image, manual Base32 key with one-click copy, and 8 one-time backup recovery codes.
+- Session verification on load (`GET /api/auth/me`) seamlessly restores dashboard state if an active `JSESSIONID` session exists.
+- Role-based dashboard controls: Super Admin and Admin can browse, activate, suspend, or unlock staff accounts; Super Admin can create Admin & Staff, while Admin is restricted to Staff creation.
+

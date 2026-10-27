@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Animal Bite Treatment Center - Clinical Authentication & User Management Portal">
+    <title>Animal Bite Treatment Center | Clinical Staff Portal</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20width=%22100%22%20height=%22100%22><text y=%22.9em%22 font-size=%2290%22>🏥</text></svg>">
+</head>
+<body>
+
+    <!-- Clinical Navbar -->
+    <header class="clinic-navbar">
+        <div class="clinic-brand">
+            <img src="/assets/mho-logo.jpg" alt="Municipal Health Office - Jose Panganiban, C.N." class="clinic-logo-img">
+            <div class="clinic-brand-text">
+                <h1>Municipal Health Office &bull; Jose Panganiban</h1>
+                <p>Animal Bite Treatment Center (ABTC) &bull; Clinical Portal</p>
+            </div>
+        </div>
+
+        <div class="nav-badges">
+            <div class="secure-badge" id="security-indicator" title="Clinical-grade ephemeral encryption active">
+                <span class="badge-dot"></span>
+                <span>Encrypted Connection</span>
+            </div>
+            <button id="logout-btn" class="btn-solid btn-solid-secondary hidden" style="width: auto; padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                <span>Sign Out</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="app-content">
+
+        <!-- =============================================================== -->
+        <!-- VIEW 1: AUTHENTICATION FLOW (LOGIN & TOTP)                       -->
+        <!-- =============================================================== -->
+        <div id="auth-view" class="view-card">
+
+            <div class="card-header">
+                <img src="/assets/mho-logo.jpg" alt="MHO Jose Panganiban Logo" class="card-logo-img">
+                <h2 class="card-title" id="auth-title">Staff Sign In</h2>
+                <p class="card-subtitle" id="auth-subtitle">Municipal Health Office &bull; Jose Panganiban, C.N.</p>
+            </div>
+
+            <!-- Ephemeral Protection Security Banner -->
+            <div class="security-notice" id="ephemeral-banner">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+                <span><strong>Protected Login:</strong> Passwords are encrypted on your device using single-use challenge keys.</span>
+            </div>
+
+            <!-- Step Indicator -->
+            <div class="clinical-step-bar" id="step-bar">
+                <div class="step-col active" id="step-1-indicator">
+                    <div class="step-number">1</div>
+                    <span>Staff Credentials</span>
+                </div>
+                <div class="step-sep"></div>
+                <div class="step-col" id="step-2-indicator">
+                    <div class="step-number">2</div>
+                    <span>Two-Factor Code</span>
+                </div>
+            </div>
+
+            <!-- Global Alert Box -->
+            <div id="auth-alert" class="msg-alert error hidden">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <span id="auth-alert-text">Authentication failed</span>
+            </div>
+
+            <!-- STEP 1 FORM: PRIMARY CREDENTIALS -->
+            <form id="step-1-form">
+                <div class="form-field">
+                    <label class="form-label" for="login-identifier">Username or Hospital Email</label>
+                    <div class="field-input-box">
+                        <svg class="input-left-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        <input type="text" id="login-identifier" class="text-input" placeholder="e.g., superadmin or staff@abtc.gov.ph" autocomplete="username" required autofocus>
+                    </div>
+                </div>
+
+                <div class="form-field">
+                    <label class="form-label" for="login-password">Password</label>
+                    <div class="field-input-box">
+                        <svg class="input-left-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                        <input type="password" id="login-password" class="text-input" placeholder="Enter your password" autocomplete="current-password" required>
+                        <button type="button" class="btn-icon-addon" id="toggle-password-btn" title="Toggle password visibility">
+                            <svg id="eye-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" id="step-1-submit-btn" class="btn-solid btn-solid-primary" style="margin-top: 1rem;">
+                    <span id="step-1-btn-text">Sign In & Verify</span>
+                    <div id="step-1-spinner" class="spinner-ring hidden"></div>
+                </button>
+            </form>
+
+            <!-- STEP 2 FORM: TOTP & RECOVERY CODE VERIFICATION -->
+            <form id="step-2-form" class="hidden">
+                <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-bottom: 0.75rem;">
+                    Enter the 6-digit verification code from your authenticator device:
+                </p>
+
+                <div class="totp-digits-wrap" id="totp-input-box">
+                    <input type="text" id="totp-code" class="totp-digits-input" maxlength="6" inputmode="numeric" placeholder="000000" autocomplete="one-time-code">
+                </div>
+
+                <div id="recovery-code-box" class="form-field hidden">
+                    <label class="form-label" for="recovery-code-input">Backup Recovery Code</label>
+                    <input type="text" id="recovery-code-input" class="text-input no-icon" placeholder="XXXX-XXXX" style="font-family: var(--font-mono); text-transform: uppercase;">
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; font-size: 0.8rem;">
+                    <button type="button" id="toggle-recovery-btn" style="background:none; border:none; color: var(--primary); cursor: pointer; text-decoration: underline;">
+                        Use backup recovery code
+                    </button>
+                    <button type="button" id="cancel-mfa-btn" style="background:none; border:none; color: var(--text-dim); cursor: pointer;">
+                        Back to login
+                    </button>
+                </div>
+
+                <button type="submit" id="step-2-submit-btn" class="btn-solid btn-solid-primary">
+                    <span id="step-2-btn-text">Confirm Code & Enter Portal</span>
+                    <div id="step-2-spinner" class="spinner-ring hidden"></div>
+                </button>
+            </form>
+
+        </div>
+
+        <!-- =============================================================== -->
+        <!-- VIEW 2: DASHBOARD VIEW (CLINICAL WORKSPACE)                     -->
+        <!-- =============================================================== -->
+        <div id="dashboard-view" class="view-card dashboard-mode hidden">
+            <div class="dashboard-layout">
+
+                <!-- Staff Profile Header -->
+                <div class="staff-header-banner">
+                    <div class="staff-identity">
+                        <div class="staff-avatar-initials" id="user-avatar-initials">SA</div>
+                        <div>
+                            <h2 class="staff-name" id="user-display-name">Super Administrator</h2>
+                            <p class="staff-meta" id="user-display-email">superadmin@enterprise.local</p>
+                            <span class="role-tag super-admin" id="user-display-role">ROLE_SUPER_ADMIN</span>
+                        </div>
+                    </div>
+                    <div>
+                        <button id="open-create-user-modal-btn" class="btn-solid btn-solid-primary hidden" style="width: auto; padding: 0.5rem 1rem; font-size: 0.82rem;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            <span>Add New Staff Account</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Staff Account Directory Section -->
+                <div class="clinical-data-card" id="user-management-section">
+                    <div class="card-title-bar">
+                        <div>
+                            <h3 style="font-size: 1.05rem; font-weight: 700;">Personnel & Staff Directory</h3>
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">Manage clinic staff, administrators, and security privileges</p>
+                        </div>
+                        <button id="refresh-users-btn" class="btn-solid btn-solid-secondary" style="width: auto; padding: 0.4rem 0.8rem; font-size: 0.78rem;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M23 4v6h-6"></path>
+                                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                            </svg>
+                            <span>Refresh List</span>
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="clinic-table">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Email Address</th>
+                                    <th>Assigned Role</th>
+                                    <th>Account Status</th>
+                                    <th>Registration Date</th>
+                                    <th>Administrative Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="user-table-body">
+                                <tr>
+                                    <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-dim);">
+                                        Loading personnel directory...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <!-- =============================================================== -->
+    <!-- MODAL: FIRST-TIME TOTP 2FA ENROLLMENT                           -->
+    <!-- =============================================================== -->
+    <div id="totp-setup-modal" class="clinic-modal-backdrop hidden">
+        <div class="clinic-modal-box">
+            <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.35rem; text-align: center;">Enroll Two-Factor Authentication</h2>
+            <p style="font-size: 0.82rem; color: var(--text-muted); text-align: center; margin-bottom: 1rem;">
+                Scan this QR code with Google Authenticator or Microsoft Authenticator on your mobile device.
+            </p>
+
+            <div class="qr-box">
+                <img id="modal-qr-image" class="qr-img" src="" alt="TOTP QR Code">
+            </div>
+
+            <p style="font-size: 0.75rem; color: var(--text-dim); margin-bottom: 0.25rem;">Manual Entry Key:</p>
+            <div class="key-code-field">
+                <span id="modal-manual-key">XXXXXXXXXXXXXXXX</span>
+                <button type="button" id="copy-secret-btn" style="background:none; border:none; color:var(--primary); cursor:pointer; font-weight:600; font-size:0.75rem;">
+                    Copy Key
+                </button>
+            </div>
+
+            <p style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0.35rem;">Backup Recovery Codes (Keep in a secure location):</p>
+            <div id="modal-recovery-codes-grid" class="recovery-grid">
+                <!-- Dynamically populated -->
+            </div>
+
+            <form id="modal-confirm-totp-form" style="margin-top: 1.25rem;">
+                <div class="form-field">
+                    <label class="form-label" for="modal-verify-code">Enter 6-digit Code from Authenticator to Confirm</label>
+                    <input type="text" id="modal-verify-code" class="text-input no-icon" maxlength="6" inputmode="numeric" placeholder="123456" required style="font-family: var(--font-mono); text-align: center; font-size: 1.25rem;">
+                </div>
+
+                <div id="modal-alert" class="msg-alert error hidden">
+                    <span id="modal-alert-text">Invalid confirmation code</span>
+                </div>
+
+                <div style="display: flex; gap: 0.75rem;">
+                    <button type="button" id="modal-cancel-btn" class="btn-solid btn-solid-secondary">Cancel</button>
+                    <button type="submit" id="modal-confirm-submit-btn" class="btn-solid btn-solid-primary">
+                        <span>Activate 2FA & Continue</span>
+                        <div id="modal-spinner" class="spinner-ring hidden"></div>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- =============================================================== -->
+    <!-- MODAL: CREATE NEW STAFF USER (SUPER ADMIN / ADMIN)              -->
+    <!-- =============================================================== -->
+    <div id="create-user-modal" class="clinic-modal-backdrop hidden">
+        <div class="clinic-modal-box">
+            <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.35rem;">Create New Staff Account</h2>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+                Add clinical or administrative personnel to the Animal Bite Treatment Center portal.
+            </p>
+
+            <form id="create-user-form">
+                <div class="form-field">
+                    <label class="form-label" for="new-username">Username</label>
+                    <input type="text" id="new-username" class="text-input no-icon" placeholder="e.g. nurse_maria or dr_santos" required>
+                </div>
+
+                <div class="form-field">
+                    <label class="form-label" for="new-email">Hospital Email Address</label>
+                    <input type="email" id="new-email" class="text-input no-icon" placeholder="staff@abtc.gov.ph" required>
+                </div>
+
+                <div class="form-field">
+                    <label class="form-label" for="new-role">Assigned Role</label>
+                    <select id="new-role" class="text-input no-icon" required>
+                        <option value="ROLE_STAFF">Staff (Clinical Nurse / Record Keeper)</option>
+                        <option value="ROLE_ADMIN" id="role-admin-option">Clinic Administrator (Staff Supervisor)</option>
+                    </select>
+                </div>
+
+                <div class="form-field">
+                    <label class="form-label" for="new-password">Temporary Initial Password</label>
+                    <input type="password" id="new-password" class="text-input no-icon" placeholder="Minimum 12 characters" required>
+                </div>
+
+                <div id="create-user-alert" class="msg-alert error hidden">
+                    <span id="create-user-alert-text">Failed to create account</span>
+                </div>
+
+                <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem;">
+                    <button type="button" id="close-create-user-modal-btn" class="btn-solid btn-solid-secondary">Cancel</button>
+                    <button type="submit" id="create-user-submit-btn" class="btn-solid btn-solid-primary">
+                        <span>Save Account</span>
+                        <div id="create-user-spinner" class="spinner-ring hidden"></div>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Clinical Footer -->
+    <footer class="clinic-footer">
+        <p>Animal Bite Treatment & Management Center &bull; Clinical Information System &bull; AES-256-GCM Vault &bull; Zero-Knowledge Ephemeral Handshake</p>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="/js/crypto-client.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
