@@ -5,5 +5,6 @@ import java.time.Instant;
 public record LoginChallengeResponse(
         String challengeToken,
         boolean mfaRequired,
+        boolean totpEnrolled,
         Instant expiresAt
 ) {}

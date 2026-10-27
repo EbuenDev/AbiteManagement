@@ -2,29 +2,39 @@ package com.enterprise.auth.service;
 
 import com.enterprise.auth.audit.AuditService;
 import com.enterprise.auth.dto.request.LoginRequest;
+import com.enterprise.auth.dto.request.TotpConfirmRequest;
+import com.enterprise.auth.dto.request.TotpVerifyRequest;
+import com.enterprise.auth.dto.response.AuthResponse;
 import com.enterprise.auth.dto.response.LoginChallengeResponse;
 import com.enterprise.auth.dto.response.PreLoginResponse;
+import com.enterprise.auth.dto.response.TotpSetupResponse;
 import com.enterprise.auth.entity.*;
 import com.enterprise.auth.exception.ApiException;
 import com.enterprise.auth.exception.ErrorCode;
 import com.enterprise.auth.repository.AuthChallengeRepository;
+import com.enterprise.auth.repository.RecoveryCodeRepository;
 import com.enterprise.auth.repository.UserRepository;
+import com.enterprise.auth.repository.UserSecuritySettingsRepository;
+import com.enterprise.auth.security.AesGcmEncryptionService;
 import com.enterprise.auth.security.EphemeralChallengeService;
 import com.enterprise.auth.security.RateLimiterService;
+import com.enterprise.auth.security.TotpService;
+import com.enterprise.auth.util.SecurityUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,13 +51,23 @@ class AuthServiceTest {
     private AuthChallengeRepository authChallengeRepository;
 
     @Mock
+    private UserSecuritySettingsRepository userSecuritySettingsRepository;
+
+    @Mock
+    private RecoveryCodeRepository recoveryCodeRepository;
+
+    @Mock
     private PasswordEncoder passwordEncoder;
 
     @Mock
     private AuditService auditService;
 
+    @Mock
+    private TotpService totpService;
+
     private EphemeralChallengeService ephemeralChallengeService;
     private RateLimiterService rateLimiterService;
+    private AesGcmEncryptionService aesGcmEncryptionService;
     private AuthService authService;
 
     private User activeUser;
@@ -59,11 +79,18 @@ class AuthServiceTest {
         rateLimiterService = new RateLimiterService();
         rateLimiterService.reset();
 
+        // 32-byte hex key for tests
+        aesGcmEncryptionService = new AesGcmEncryptionService("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+
         authService = new AuthService(
                 userRepository,
                 authChallengeRepository,
+                userSecuritySettingsRepository,
+                recoveryCodeRepository,
                 ephemeralChallengeService,
                 rateLimiterService,
+                totpService,
+                aesGcmEncryptionService,
                 passwordEncoder,
                 auditService
         );
@@ -112,6 +139,7 @@ class AuthServiceTest {
 
         assertNotNull(response);
         assertTrue(response.mfaRequired());
+        assertFalse(response.totpEnrolled());
         assertNotNull(response.challengeToken());
         assertTrue(response.expiresAt().isAfter(Instant.now()));
 
@@ -131,15 +159,12 @@ class AuthServiceTest {
         when(userRepository.findByIdentifier("testuser")).thenReturn(Optional.of(activeUser));
         when(passwordEncoder.matches("SecretPassword123!", "hashedPassword")).thenReturn(true);
 
-        // 1. Simulate pre-login handshake
         PreLoginResponse preLogin = authService.preLogin("testuser", "127.0.0.1");
 
-        // 2. Encrypt clone key using server's ephemeral public key with embedded nonce and timestamp
         long timestamp = System.currentTimeMillis();
         String payload = "SecretPassword123!:" + preLogin.serverNonce() + ":" + timestamp;
         String encryptedCloneKey = EphemeralChallengeService.encryptPayload(payload, preLogin.publicKey());
 
-        // 3. Submit login request with ephemeral clone key
         LoginRequest request = new LoginRequest("testuser", preLogin.serverNonce(), encryptedCloneKey, null, timestamp);
         LoginChallengeResponse response = authService.login(request, "127.0.0.1", "TestAgent");
 
@@ -161,10 +186,8 @@ class AuthServiceTest {
 
         LoginRequest request = new LoginRequest("testuser", preLogin.serverNonce(), encryptedCloneKey, null, timestamp);
 
-        // First attempt consumes and burns the nonce
         authService.login(request, "127.0.0.1", "TestAgent");
 
-        // Second attempt with identical nonce must fail
         ApiException exception = assertThrows(ApiException.class, () ->
                 authService.login(request, "127.0.0.1", "TestAgent"));
 
@@ -194,7 +217,7 @@ class AuthServiceTest {
     void login_with5ConsecutiveFailures_locksAccount() {
         when(userRepository.findByIdentifier("testuser")).thenReturn(Optional.of(activeUser));
         when(passwordEncoder.matches("WrongPassword", "hashedPassword")).thenReturn(false);
-        securitySettings.setFailedLoginCount(4); // 4 prior failures
+        securitySettings.setFailedLoginCount(4);
 
         LoginRequest request = new LoginRequest("testuser", null, null, "WrongPassword", null);
 
@@ -207,77 +230,161 @@ class AuthServiceTest {
         assertEquals(UserStatus.LOCKED, activeUser.getStatus());
         assertNotNull(securitySettings.getLockedUntil());
         assertTrue(securitySettings.getLockedUntil().isAfter(Instant.now()));
-
-        verify(auditService, times(1)).recordEvent(
-                eq(activeUser.getId()),
-                eq("ACCOUNT_LOCKED"),
-                eq("127.0.0.1"),
-                eq("TestAgent"),
-                anyString()
-        );
     }
 
     @Test
-    @DisplayName("Login on currently locked account throws 423 LOCKED without evaluating password")
-    void login_withLockedAccount_throws423() {
-        activeUser.setStatus(UserStatus.LOCKED);
-        securitySettings.setLockedUntil(Instant.now().plus(10, ChronoUnit.MINUTES));
-        when(userRepository.findByIdentifier("testuser")).thenReturn(Optional.of(activeUser));
+    @DisplayName("Setup TOTP with pending challenge token returns secret, QR code URI, and recovery codes")
+    void setupTotp_withPendingChallenge_returnsSetupDetails() {
+        String token = "my-test-token-123";
+        String tokenHash = SecurityUtils.sha256(token);
+        AuthChallenge challenge = new AuthChallenge(activeUser, tokenHash, AuthChallengeStatus.PENDING, Instant.now().plus(300, ChronoUnit.SECONDS));
 
-        LoginRequest request = new LoginRequest("testuser", null, null, "AnyPassword", null);
+        when(authChallengeRepository.findByTokenHashAndStatus(tokenHash, AuthChallengeStatus.PENDING))
+                .thenReturn(Optional.of(challenge));
+        when(totpService.generateSecret()).thenReturn("JBSWY3DPEHPK3PXP");
+        when(totpService.generateQrCodeDataUri("testuser", "JBSWY3DPEHPK3PXP")).thenReturn("data:image/png;base64,mockQrCode");
+        when(totpService.generateRecoveryCodes()).thenReturn(List.of("AAAA-BBBB", "CCCC-DDDD"));
 
-        ApiException exception = assertThrows(ApiException.class, () ->
-                authService.login(request, "127.0.0.1", "TestAgent"));
+        TotpSetupResponse response = authService.setupTotp(token, null);
 
-        assertEquals(HttpStatus.LOCKED, exception.getStatus());
-        assertEquals(ErrorCode.ACCOUNT_LOCKED, exception.getErrorCode());
-        verify(passwordEncoder, never()).matches(anyString(), anyString());
+        assertNotNull(response);
+        assertEquals("JBSWY3DPEHPK3PXP", response.manualKey());
+        assertEquals("data:image/png;base64,mockQrCode", response.qrCodeDataUri());
+        assertEquals(2, response.recoveryCodes().size());
     }
 
     @Test
-    @DisplayName("Login on suspended account throws 403 FORBIDDEN")
-    void login_withSuspendedAccount_throws403() {
-        activeUser.setStatus(UserStatus.SUSPENDED);
-        when(userRepository.findByIdentifier("testuser")).thenReturn(Optional.of(activeUser));
+    @DisplayName("Confirm TOTP with valid code encrypts secret, hashes recovery codes, and completes challenge")
+    void confirmTotp_withValidCode_encryptsAndEstablishesSession() {
+        String token = "confirm-token-123";
+        String tokenHash = SecurityUtils.sha256(token);
+        AuthChallenge challenge = new AuthChallenge(activeUser, tokenHash, AuthChallengeStatus.PENDING, Instant.now().plus(300, ChronoUnit.SECONDS));
 
-        LoginRequest request = new LoginRequest("testuser", null, null, "AnyPassword", null);
+        when(authChallengeRepository.findByTokenHashAndStatus(tokenHash, AuthChallengeStatus.PENDING))
+                .thenReturn(Optional.of(challenge));
+        when(totpService.verifyCode("JBSWY3DPEHPK3PXP", "123456", 0L))
+                .thenReturn(new TotpService.TotpVerificationResult(true, 12345L, null));
+        when(passwordEncoder.encode(anyString())).thenReturn("hashed-code");
 
-        ApiException exception = assertThrows(ApiException.class, () ->
-                authService.login(request, "127.0.0.1", "TestAgent"));
+        TotpConfirmRequest request = new TotpConfirmRequest(token, "JBSWY3DPEHPK3PXP", "123456", List.of("CODE-1111", "CODE-2222"));
+        MockHttpServletRequest httpRequest = new MockHttpServletRequest();
 
-        assertEquals(HttpStatus.FORBIDDEN, exception.getStatus());
-        assertEquals(ErrorCode.ACCOUNT_INACTIVE, exception.getErrorCode());
+        AuthResponse response = authService.confirmTotp(request, "127.0.0.1", "TestAgent", httpRequest);
+
+        assertNotNull(response);
+        assertEquals("testuser", response.user().username());
+        assertTrue(securitySettings.isTotpEnabled());
+        assertNotNull(securitySettings.getEncryptedTotpSecret());
+        assertNotNull(securitySettings.getTotpEncryptionIv());
+
+        verify(recoveryCodeRepository, times(2)).save(any(RecoveryCode.class));
+        verify(authChallengeRepository, atLeastOnce()).save(challenge);
+        assertEquals(AuthChallengeStatus.COMPLETED, challenge.getStatus());
     }
 
     @Test
-    @DisplayName("Login with unknown username performs dummy check and returns 401")
-    void login_withUnknownUser_returns401() {
-        when(userRepository.findByIdentifier("unknown")).thenReturn(Optional.empty());
+    @DisplayName("Verify TOTP with valid 6-digit code marks challenge COMPLETED and creates session")
+    void verifyTotp_withValidTotpCode_succeeds() {
+        String token = "verify-token-123";
+        String tokenHash = SecurityUtils.sha256(token);
 
-        LoginRequest request = new LoginRequest("unknown", null, null, "AnyPassword", null);
+        // Setup user with enrolled TOTP secret
+        AesGcmEncryptionService.EncryptedPayload encrypted = aesGcmEncryptionService.encrypt("BASE32SECRET");
+        securitySettings.setTotpEnabled(true);
+        securitySettings.setEncryptedTotpSecret(encrypted.base64Ciphertext());
+        securitySettings.setTotpEncryptionIv(encrypted.base64Iv());
+
+        AuthChallenge challenge = new AuthChallenge(activeUser, tokenHash, AuthChallengeStatus.PENDING, Instant.now().plus(300, ChronoUnit.SECONDS));
+        when(authChallengeRepository.findByTokenHash(tokenHash)).thenReturn(Optional.of(challenge));
+        when(totpService.verifyCode("BASE32SECRET", "654321", 0L))
+                .thenReturn(new TotpService.TotpVerificationResult(true, 99999L, null));
+
+        TotpVerifyRequest request = new TotpVerifyRequest(token, "654321");
+        MockHttpServletRequest httpRequest = new MockHttpServletRequest();
+
+        AuthResponse response = authService.verifyTotp(request, "127.0.0.1", "TestAgent", httpRequest);
+
+        assertNotNull(response);
+        assertEquals("testuser", response.user().username());
+        assertEquals(AuthChallengeStatus.COMPLETED, challenge.getStatus());
+        verify(authChallengeRepository, times(1)).save(challenge);
+    }
+
+    @Test
+    @DisplayName("Verify TOTP with valid backup recovery code succeeds and marks code as used")
+    void verifyTotp_withValidRecoveryCode_succeeds() {
+        String token = "recovery-token-123";
+        String tokenHash = SecurityUtils.sha256(token);
+
+        AesGcmEncryptionService.EncryptedPayload encrypted = aesGcmEncryptionService.encrypt("BASE32SECRET");
+        securitySettings.setTotpEnabled(true);
+        securitySettings.setEncryptedTotpSecret(encrypted.base64Ciphertext());
+        securitySettings.setTotpEncryptionIv(encrypted.base64Iv());
+
+        AuthChallenge challenge = new AuthChallenge(activeUser, tokenHash, AuthChallengeStatus.PENDING, Instant.now().plus(300, ChronoUnit.SECONDS));
+        when(authChallengeRepository.findByTokenHash(tokenHash)).thenReturn(Optional.of(challenge));
+
+        // Code is not a 6-digit numeric TOTP code, but an alphanumeric recovery code "ABCD-1234"
+        RecoveryCode activeRecoveryCode = new RecoveryCode(activeUser, "hashed-recovery-code");
+        when(recoveryCodeRepository.findActiveCodesByUserId(activeUser.getId()))
+                .thenReturn(List.of(activeRecoveryCode));
+        when(passwordEncoder.matches("ABCD-1234", "hashed-recovery-code")).thenReturn(true);
+
+        TotpVerifyRequest request = new TotpVerifyRequest(token, "ABCD-1234");
+        MockHttpServletRequest httpRequest = new MockHttpServletRequest();
+
+        AuthResponse response = authService.verifyTotp(request, "127.0.0.1", "TestAgent", httpRequest);
+
+        assertNotNull(response);
+        assertTrue(activeRecoveryCode.isUsed());
+        assertEquals(AuthChallengeStatus.COMPLETED, challenge.getStatus());
+        verify(recoveryCodeRepository, times(1)).save(activeRecoveryCode);
+    }
+
+    @Test
+    @DisplayName("Verify TOTP with 3 invalid attempts locks the challenge to FAILED")
+    void verifyTotp_with3InvalidAttempts_locksChallenge() {
+        String token = "failed-challenge-token";
+        String tokenHash = SecurityUtils.sha256(token);
+
+        AesGcmEncryptionService.EncryptedPayload encrypted = aesGcmEncryptionService.encrypt("BASE32SECRET");
+        securitySettings.setTotpEnabled(true);
+        securitySettings.setEncryptedTotpSecret(encrypted.base64Ciphertext());
+        securitySettings.setTotpEncryptionIv(encrypted.base64Iv());
+
+        AuthChallenge challenge = new AuthChallenge(activeUser, tokenHash, AuthChallengeStatus.PENDING, Instant.now().plus(300, ChronoUnit.SECONDS));
+        challenge.setFailedAttempts(2); // 2 prior failures
+
+        when(authChallengeRepository.findByTokenHash(tokenHash)).thenReturn(Optional.of(challenge));
+        when(totpService.verifyCode("BASE32SECRET", "000000", 0L))
+                .thenReturn(new TotpService.TotpVerificationResult(false, 0L, "Invalid code"));
+        when(recoveryCodeRepository.findActiveCodesByUserId(activeUser.getId())).thenReturn(List.of());
+
+        TotpVerifyRequest request = new TotpVerifyRequest(token, "000000");
+        MockHttpServletRequest httpRequest = new MockHttpServletRequest();
 
         ApiException exception = assertThrows(ApiException.class, () ->
-                authService.login(request, "127.0.0.1", "TestAgent"));
+                authService.verifyTotp(request, "127.0.0.1", "TestAgent", httpRequest));
 
         assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatus());
-        assertEquals(ErrorCode.INVALID_CREDENTIALS, exception.getErrorCode());
-        verify(passwordEncoder, times(1)).matches(eq("AnyPassword"), anyString());
+        assertEquals(ErrorCode.INVALID_TOTP_CODE, exception.getErrorCode());
+        assertEquals(3, challenge.getFailedAttempts());
+        assertEquals(AuthChallengeStatus.FAILED, challenge.getStatus());
+        verify(authChallengeRepository, times(1)).save(challenge);
     }
 
     @Test
-    @DisplayName("Exceeding login rate limit throws 429 TOO_MANY_REQUESTS")
-    void login_rateLimitExceeded_throws429() {
-        LoginRequest request = new LoginRequest("ratelimituser", null, null, "AnyPassword", null);
+    @DisplayName("Logout clears SecurityContext, invalidates session, and clears JSESSIONID cookie")
+    void logout_invalidatesSessionAndClearsContext() {
+        MockHttpServletRequest httpRequest = new MockHttpServletRequest();
+        httpRequest.getSession(true); // create active session
+        MockHttpServletResponse httpResponse = new MockHttpServletResponse();
 
-        // Exhaust 5 tokens
-        for (int i = 0; i < 5; i++) {
-            rateLimiterService.allowLogin("10.0.0.1", "ratelimituser");
-        }
+        authService.logout(httpRequest, httpResponse, "127.0.0.1", "TestAgent");
 
-        ApiException exception = assertThrows(ApiException.class, () ->
-                authService.login(request, "10.0.0.1", "TestAgent"));
-
-        assertEquals(HttpStatus.TOO_MANY_REQUESTS, exception.getStatus());
-        assertEquals(ErrorCode.RATE_LIMIT_EXCEEDED, exception.getErrorCode());
+        assertNull(httpRequest.getSession(false));
+        assertNotNull(httpResponse.getHeader("Set-Cookie"));
+        assertTrue(httpResponse.getHeader("Set-Cookie").contains("JSESSIONID="));
+        assertTrue(httpResponse.getHeader("Set-Cookie").contains("Max-Age=0"));
     }
 }

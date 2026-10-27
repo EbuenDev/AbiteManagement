@@ -73,6 +73,27 @@ Full session establishment is strictly isolated into two distinct phases:
   - A secure HTTP session (`JSESSIONID`) is created with session fixation protection (`changeSessionId()`).
   - Response headers include `HttpOnly; Secure; SameSite=Strict`.
 
+### 3.1 Stage 5 Concrete Implementation
+1. **AES-256-GCM Vault Service (`AesGcmEncryptionService`)**:
+   - Master 256-bit key configured via `app.security.master-encryption-key` (`APP_ENCRYPTION_MASTER_KEY`).
+   - Dynamic 12-byte (96-bit) cryptographically random IV generated per encryption operation.
+   - Enforces 128-bit authentication tag verification upon decryption (tamper detection).
+
+2. **TOTP Engine & Anti-Replay Defense (`TotpService`)**:
+   - Generates 160-bit Base32 secrets and QR codes (`otpauth://` Data URI).
+   - Validates 6-digit codes with +/- 1 time-step clock drift allowance (30s window).
+   - Anti-replay enforcement: compares `currentTimeStep` against persisted `last_totp_time_step`. Replayed codes within the same window fail immediately.
+
+3. **Backup Recovery Codes (`RecoveryCodeRepository`)**:
+   - 8 one-time alphanumeric codes (`XXXX-XXXX`) generated during setup.
+   - Hashed with Argon2 / BCrypt before persistence in `recovery_codes` table.
+   - Verified atomically during step 2 login; once consumed, marked with timestamp `used_at = now()`.
+
+4. **Session Fixation Defense & State Management**:
+   - Step 1 credential check strictly does NOT create an HTTP session.
+   - Step 2 MFA completion invokes `request.changeSessionId()` before storing `SecurityContext` in `HttpSession`.
+   - Audit logging captures `TOTP_ENROLLED`, `RECOVERY_CODE_USED`, `LOGIN_SUCCESSFUL`, and `LOGOUT`.
+
 ---
 
 ## 4. SQL Injection Immunity
