@@ -384,18 +384,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const preLoginData = await ApiClient.preLogin(identifier);
 
             // Step 1b: Derive ephemeral cryptographic proof in browser via native Web Crypto API
-            const encryptedPassword = await CryptoClient.deriveEncryptedPassword(
-                preLoginData.publicKey,
+            const cloneKey = await CryptoClient.generateCloneKey(
+                password,
                 preLoginData.serverNonce,
-                preLoginData.clientSalt,
-                password
+                preLoginData.timestamp,
+                preLoginData.publicKey
             );
 
             // Step 1c: Primary credential verification
             const loginRes = await ApiClient.login({
                 identifier,
                 serverNonce: preLoginData.serverNonce,
-                encryptedPassword
+                cloneKey,
+                timestamp: preLoginData.timestamp
             });
 
             // Intermediate challenge state established

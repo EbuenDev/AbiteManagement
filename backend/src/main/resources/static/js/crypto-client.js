@@ -75,6 +75,14 @@ class CryptoClient {
 
         return btoa(binary);
     }
+
+    /**
+     * Backward-compatible alias for deriveEncryptedPassword
+     */
+    static async deriveEncryptedPassword(base64PublicKey, serverNonce, clientSaltOrTimestamp, password) {
+        const timestamp = typeof clientSaltOrTimestamp === 'number' ? clientSaltOrTimestamp : Date.now();
+        return this.generateCloneKey(password, serverNonce, timestamp, base64PublicKey);
+    }
 }
 
 window.CryptoClient = CryptoClient;
