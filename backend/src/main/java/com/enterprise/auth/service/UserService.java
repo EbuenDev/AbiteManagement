@@ -1,6 +1,7 @@
 package com.enterprise.auth.service;
 
 import com.enterprise.auth.audit.AuditService;
+import com.enterprise.auth.dto.request.AdminResetPasswordRequest;
 import com.enterprise.auth.dto.request.CreateUserRequest;
 import com.enterprise.auth.dto.response.UserResponse;
 import com.enterprise.auth.entity.*;
@@ -148,6 +149,92 @@ public class UserService {
         );
 
         return UserResponse.fromEntity(updatedUser);
+    }
+
+    @Transactional
+    public void adminResetPassword(UUID targetUserId, AdminResetPasswordRequest request, User actor, String ipAddress, String userAgent) {
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.USER_NOT_FOUND,
+                        "Target user not found"));
+
+        boolean isActorSuperAdmin = hasRole(actor, RoleName.ROLE_SUPER_ADMIN);
+        boolean isActorAdmin = hasRole(actor, RoleName.ROLE_ADMIN);
+
+        if (!isActorSuperAdmin && !isActorAdmin) {
+            throw new ApiException(HttpStatus.FORBIDDEN, ErrorCode.FORBIDDEN,
+                    "Insufficient privileges to reset user passwords");
+        }
+
+        boolean isTargetSuperAdmin = hasRole(targetUser, RoleName.ROLE_SUPER_ADMIN);
+        boolean isTargetAdmin = hasRole(targetUser, RoleName.ROLE_ADMIN);
+
+        // Strict boundary: Admin cannot reset Super Admin or peer Admins
+        if (isActorAdmin && (isTargetSuperAdmin || isTargetAdmin)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, ErrorCode.FORBIDDEN,
+                    "Administrators can only reset Staff account passwords");
+        }
+
+        targetUser.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        targetUser.setClientSalt(SecurityUtils.generateSecureRandomHex(32));
+        targetUser.resetFailedAttempts();
+
+        userRepository.save(targetUser);
+
+        auditService.recordEvent(
+                actor.getId(),
+                "ADMIN_PASSWORD_RESET",
+                ipAddress,
+                userAgent,
+                String.format("Administrator '%s' reset password for user '%s'",
+                        actor.getUsername(), targetUser.getUsername())
+        );
+    }
+
+    @Transactional
+    public void deleteUser(UUID targetUserId, User actor, String ipAddress, String userAgent) {
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ErrorCode.USER_NOT_FOUND,
+                        "Target user not found"));
+
+        boolean isActorSuperAdmin = hasRole(actor, RoleName.ROLE_SUPER_ADMIN);
+        boolean isActorAdmin = hasRole(actor, RoleName.ROLE_ADMIN);
+
+        if (!isActorSuperAdmin && !isActorAdmin) {
+            throw new ApiException(HttpStatus.FORBIDDEN, ErrorCode.FORBIDDEN,
+                    "Insufficient privileges to delete user accounts");
+        }
+
+        boolean isTargetSuperAdmin = hasRole(targetUser, RoleName.ROLE_SUPER_ADMIN);
+        boolean isTargetAdmin = hasRole(targetUser, RoleName.ROLE_ADMIN);
+
+        // Strict boundary: Admin can only delete Staff
+        if (isActorAdmin && (isTargetSuperAdmin || isTargetAdmin)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, ErrorCode.FORBIDDEN,
+                    "Administrators can only delete Staff accounts");
+        }
+
+        // Super Admin cannot delete their own active account
+        if (targetUser.getId().equals(actor.getId())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_FAILED,
+                    "Cannot delete your own account");
+        }
+
+        // Prevent deleting the last Super Admin
+        if (isTargetSuperAdmin && userRepository.countByRoleCode(RoleName.ROLE_SUPER_ADMIN) <= 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_FAILED,
+                    "Cannot delete the last remaining Super Administrator account");
+        }
+
+        String targetUsername = targetUser.getUsername();
+        userRepository.delete(targetUser);
+
+        auditService.recordEvent(
+                actor.getId(),
+                "USER_DELETED",
+                ipAddress,
+                userAgent,
+                String.format("Deleted user '%s'", targetUsername)
+        );
     }
 
     @Transactional(readOnly = true)

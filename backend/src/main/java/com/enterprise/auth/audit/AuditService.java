@@ -48,6 +48,11 @@ public class AuditService {
         auditLogRepository.save(log);
     }
 
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<AuditLog> getAuditLogs(org.springframework.data.domain.Pageable pageable) {
+        return auditLogRepository.findAllByOrderByCreatedAtDesc(pageable);
+    }
+
     public static String extractClientIp(HttpServletRequest request) {
         if (request == null) return "INTERNAL";
         String xfHeader = request.getHeader("X-Forwarded-For");

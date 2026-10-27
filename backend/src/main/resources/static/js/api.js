@@ -113,6 +113,22 @@ class ApiClient {
         });
     }
 
+    // --- Password Reset Endpoints ---
+
+    static async requestPasswordReset(identifier) {
+        return this.request('/api/auth/password-reset/request', {
+            method: 'POST',
+            body: { identifier }
+        });
+    }
+
+    static async confirmPasswordReset(token, newPassword) {
+        return this.request('/api/auth/password-reset/confirm', {
+            method: 'POST',
+            body: { token, newPassword }
+        });
+    }
+
     // --- User Administration Endpoints ---
 
     static async getUsers(page = 0, size = 10) {
@@ -128,9 +144,28 @@ class ApiClient {
 
     static async updateUserStatus(userId, status) {
         return this.request(`/api/users/${encodeURIComponent(userId)}/status`, {
-            method: 'PUT',
+            method: 'PATCH',
             body: { status }
         });
+    }
+
+    static async adminResetPassword(userId, newPassword) {
+        return this.request(`/api/users/${encodeURIComponent(userId)}/reset-password`, {
+            method: 'POST',
+            body: { newPassword }
+        });
+    }
+
+    static async deleteUser(userId) {
+        return this.request(`/api/users/${encodeURIComponent(userId)}`, {
+            method: 'DELETE'
+        });
+    }
+
+    // --- Audit Trail Endpoints (Super Admin Only) ---
+
+    static async getAuditLogs(page = 0, size = 25) {
+        return this.request(`/api/audit-logs?page=${page}&size=${size}`);
     }
 }
 

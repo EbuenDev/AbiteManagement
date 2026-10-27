@@ -135,6 +135,13 @@ public class User {
         return updatedAt;
     }
 
+    public void resetFailedAttempts() {
+        if (this.securitySettings != null) {
+            this.securitySettings.setFailedLoginCount(0);
+            this.securitySettings.setLockedUntil(null);
+        }
+    }
+
     @PreUpdate
     public void preUpdate() {
         this.updatedAt = Instant.now();

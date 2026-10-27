@@ -1,6 +1,7 @@
 package com.enterprise.auth.controller;
 
 import com.enterprise.auth.audit.AuditService;
+import com.enterprise.auth.dto.request.AdminResetPasswordRequest;
 import com.enterprise.auth.dto.request.CreateUserRequest;
 import com.enterprise.auth.dto.request.UpdateUserStatusRequest;
 import com.enterprise.auth.dto.response.UserResponse;
@@ -19,6 +20,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -82,5 +84,36 @@ public class UserController {
 
         UserResponse updated = userService.updateUserStatus(id, request.status(), actor, ip, agent);
         return ResponseEntity.ok(updated);
+    }
+
+    @PostMapping("/{id}/reset-password")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+    public ResponseEntity<Map<String, String>> adminResetPassword(
+            @PathVariable UUID id,
+            @Valid @RequestBody AdminResetPasswordRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            HttpServletRequest servletRequest
+    ) {
+        User actor = userDetails != null ? userDetails.getUser() : null;
+        String ip = AuditService.extractClientIp(servletRequest);
+        String agent = servletRequest.getHeader("User-Agent");
+
+        userService.adminResetPassword(id, request, actor, ip, agent);
+        return ResponseEntity.ok(Map.of("message", "User password reset successfully"));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+    public ResponseEntity<Map<String, String>> deleteUser(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            HttpServletRequest servletRequest
+    ) {
+        User actor = userDetails != null ? userDetails.getUser() : null;
+        String ip = AuditService.extractClientIp(servletRequest);
+        String agent = servletRequest.getHeader("User-Agent");
+
+        userService.deleteUser(id, actor, ip, agent);
+        return ResponseEntity.ok(Map.of("message", "User account deleted successfully"));
     }
 }

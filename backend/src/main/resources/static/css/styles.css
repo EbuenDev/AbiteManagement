@@ -719,3 +719,136 @@ body {
     color: var(--text-dim);
     margin-top: auto;
 }
+
+/* Clinical Tabs */
+.clinical-nav-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+    border-bottom: 2px solid var(--border-light);
+    padding-bottom: 0.25rem;
+}
+
+.clinical-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: transparent;
+    border: none;
+    padding: 0.65rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    transition: var(--transition-fast);
+}
+
+.clinical-tab:hover {
+    color: var(--primary);
+    background-color: var(--primary-light);
+}
+
+.clinical-tab.active {
+    color: var(--primary);
+    background-color: var(--primary-light);
+    border-bottom: 2px solid var(--primary);
+    margin-bottom: -2px;
+}
+
+/* Action Buttons in Tables */
+.table-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.btn-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-medium);
+    background-color: #ffffff;
+    color: var(--text-body);
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.btn-action:hover {
+    background-color: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.btn-action-primary {
+    color: var(--primary);
+    border-color: #bae6fd;
+    background-color: #f0f9ff;
+}
+.btn-action-primary:hover {
+    background-color: #e0f2fe;
+}
+
+.btn-action-warning {
+    color: #b45309;
+    border-color: #fde68a;
+    background-color: #fefce8;
+}
+.btn-action-warning:hover {
+    background-color: #fef9c3;
+}
+
+.btn-action-danger {
+    color: var(--danger);
+    border-color: #fecaca;
+    background-color: #fef2f2;
+}
+.btn-action-danger:hover {
+    background-color: #fee2e2;
+}
+
+.btn-action:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Audit Log Event Badges */
+.audit-badge {
+    display: inline-block;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+}
+
+.audit-badge.auth-success {
+    background-color: #dcfce7;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+}
+
+.audit-badge.auth-failed {
+    background-color: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+
+.audit-badge.auth-admin {
+    background-color: #f3e8ff;
+    color: #7e22ce;
+    border: 1px solid #e9d5ff;
+}
+
+.audit-badge.auth-info {
+    background-color: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+}
+

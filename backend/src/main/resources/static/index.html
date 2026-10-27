@@ -113,7 +113,13 @@
                     </div>
                 </div>
 
-                <button type="submit" id="step-1-submit-btn" class="btn-solid btn-solid-primary" style="margin-top: 1rem;">
+                <div style="display: flex; justify-content: flex-end; margin-top: 0.35rem; margin-bottom: 0.5rem;">
+                    <button type="button" id="forgot-password-link" style="background:none; border:none; color: var(--primary); font-size: 0.8rem; cursor: pointer; text-decoration: underline;">
+                        Forgot Password?
+                    </button>
+                </div>
+
+                <button type="submit" id="step-1-submit-btn" class="btn-solid btn-solid-primary" style="margin-top: 0.5rem;">
                     <span id="step-1-btn-text">Sign In & Verify</span>
                     <div id="step-1-spinner" class="spinner-ring hidden"></div>
                 </button>
@@ -149,6 +155,70 @@
                 </button>
             </form>
 
+            <!-- FORGOT PASSWORD FORM: RECOVERY FLOW -->
+            <div id="forgot-password-box" class="hidden">
+                <div style="text-align: center; margin-bottom: 1.25rem;">
+                    <h3 style="font-size: 1.1rem; font-weight: 700; color: #0f172a; margin-bottom: 0.25rem;">Account Password Recovery</h3>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">Self-service password reset for clinical staff & personnel</p>
+                </div>
+
+                <div id="forgot-alert" class="msg-alert error hidden">
+                    <span id="forgot-alert-text">Error message</span>
+                </div>
+
+                <!-- Sub-step 1: Request Token -->
+                <form id="forgot-request-form">
+                    <div class="form-field">
+                        <label class="form-label" for="forgot-identifier">Username or Hospital Email</label>
+                        <div class="field-input-box">
+                            <svg class="input-left-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                            <input type="text" id="forgot-identifier" class="text-input" placeholder="e.g. staff@abtc.gov.ph" required>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="forgot-request-submit-btn" class="btn-solid btn-solid-primary" style="margin-top: 0.75rem;">
+                        <span>Send Reset Instructions</span>
+                        <div id="forgot-request-spinner" class="spinner-ring hidden"></div>
+                    </button>
+                </form>
+
+                <!-- Sub-step 2: Confirm Reset (hidden initially) -->
+                <form id="forgot-confirm-form" class="hidden" style="margin-top: 1rem;">
+                    <div class="msg-alert success" id="forgot-dev-token-notice" style="margin-bottom: 1rem;">
+                        <span id="forgot-dev-token-text">Reset instructions generated. Enter token and your new password below.</span>
+                    </div>
+
+                    <div class="form-field">
+                        <label class="form-label" for="forgot-token-input">Reset Verification Token</label>
+                        <input type="text" id="forgot-token-input" class="text-input no-icon" placeholder="64-character token" required style="font-family: var(--font-mono); font-size: 0.8rem;">
+                    </div>
+
+                    <div class="form-field">
+                        <label class="form-label" for="forgot-new-password">New Password (min 12 characters)</label>
+                        <input type="password" id="forgot-new-password" class="text-input no-icon" placeholder="Enter new strong password" required>
+                    </div>
+
+                    <div class="form-field">
+                        <label class="form-label" for="forgot-confirm-password">Confirm New Password</label>
+                        <input type="password" id="forgot-confirm-password" class="text-input no-icon" placeholder="Repeat new password" required>
+                    </div>
+
+                    <button type="submit" id="forgot-confirm-submit-btn" class="btn-solid btn-solid-primary">
+                        <span>Set New Password & Return</span>
+                        <div id="forgot-confirm-spinner" class="spinner-ring hidden"></div>
+                    </button>
+                </form>
+
+                <div style="text-align: center; margin-top: 1.25rem;">
+                    <button type="button" id="back-to-login-btn" style="background:none; border:none; color: var(--text-dim); cursor: pointer; font-size: 0.82rem;">
+                        &larr; Back to Hospital Sign In
+                    </button>
+                </div>
+            </div>
+
         </div>
 
         <!-- =============================================================== -->
@@ -176,6 +246,25 @@
                             <span>Add New Staff Account</span>
                         </button>
                     </div>
+                </div>
+
+                <!-- Clinical Navigation Tabs -->
+                <div class="clinical-nav-tabs">
+                    <button class="clinical-tab active" id="tab-personnel-btn">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        <span>Personnel Directory</span>
+                    </button>
+                    <button class="clinical-tab hidden" id="tab-audit-logs-btn">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                        <span>Security Audit Trail</span>
+                    </button>
                 </div>
 
                 <!-- Staff Account Directory Section -->
@@ -210,6 +299,44 @@
                                 <tr>
                                     <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-dim);">
                                         Loading personnel directory...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Audit Log Section (Super Admin Only) -->
+                <div class="clinical-data-card hidden" id="audit-log-section">
+                    <div class="card-title-bar">
+                        <div>
+                            <h3 style="font-size: 1.05rem; font-weight: 700;">Security Audit Trail & Compliance</h3>
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">Tamper-evident logs of authentication, password resets, and user management events</p>
+                        </div>
+                        <button id="refresh-audit-btn" class="btn-solid btn-solid-secondary" style="width: auto; padding: 0.4rem 0.8rem; font-size: 0.78rem;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M23 4v6h-6"></path>
+                                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                            </svg>
+                            <span>Refresh Audit Logs</span>
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="clinic-table">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Event Type</th>
+                                    <th>Operator / Target</th>
+                                    <th>Client IP</th>
+                                    <th>Security Context & Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="audit-table-body">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-dim);">
+                                        Loading audit logs...
                                     </td>
                                 </tr>
                             </tbody>
@@ -313,6 +440,39 @@
                     <button type="submit" id="create-user-submit-btn" class="btn-solid btn-solid-primary">
                         <span>Save Account</span>
                         <div id="create-user-spinner" class="spinner-ring hidden"></div>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- =============================================================== -->
+    <!-- MODAL: ADMIN RESET USER PASSWORD                                -->
+    <!-- =============================================================== -->
+    <div id="admin-reset-pwd-modal" class="clinic-modal-backdrop hidden">
+        <div class="clinic-modal-box">
+            <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.35rem;">Reset User Password</h2>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+                Set a new temporary password for: <strong id="admin-reset-target-username">user</strong>
+            </p>
+
+            <form id="admin-reset-pwd-form">
+                <input type="hidden" id="admin-reset-target-id">
+
+                <div class="form-field">
+                    <label class="form-label" for="admin-reset-new-pwd">New Temporary Password</label>
+                    <input type="password" id="admin-reset-new-pwd" class="text-input no-icon" placeholder="Minimum 12 characters" required>
+                </div>
+
+                <div id="admin-reset-alert" class="msg-alert error hidden">
+                    <span id="admin-reset-alert-text">Password reset failed</span>
+                </div>
+
+                <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem;">
+                    <button type="button" id="close-admin-reset-modal-btn" class="btn-solid btn-solid-secondary">Cancel</button>
+                    <button type="submit" id="admin-reset-submit-btn" class="btn-solid btn-solid-primary">
+                        <span>Apply New Password</span>
+                        <div id="admin-reset-spinner" class="spinner-ring hidden"></div>
                     </button>
                 </div>
             </form>

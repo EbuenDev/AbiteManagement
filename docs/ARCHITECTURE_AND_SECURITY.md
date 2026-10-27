@@ -133,3 +133,31 @@ Full session establishment is strictly isolated into two distinct phases:
 - Session verification on load (`GET /api/auth/me`) seamlessly restores dashboard state if an active `JSESSIONID` session exists.
 - Role-based dashboard controls: Super Admin and Admin can browse, activate, suspend, or unlock staff accounts; Super Admin can create Admin & Staff, while Admin is restricted to Staff creation.
 
+---
+
+## 7. Administrative User Management & Password Reset (Stage 7)
+
+### 7.1 Cryptographic Password Reset Architecture
+- **Raw Token Confidentiality**: Password reset tokens are generated using a 256-bit cryptographically secure random generator (`SecurityUtils.generateSecureRandomHex(32)`). The raw token is **never** stored in the database.
+- **SHA-256 Token Hashing**: The database table `password_reset_tokens` only persists the `token_hash` (`VARCHAR(64)` SHA-256 digest). Even a full database dump cannot reveal valid reset tokens.
+- **Single-Use & Expiration**: Tokens expire after 15 minutes (`expires_at`) and can only be used once (`used_at IS NOT NULL`). Upon consumption or replacement, old tokens for the user are immediately invalidated.
+- **Client Salt Rotation**: When a user's password is reset (either via self-service token or administrator intervention), the user's `client_salt` is rotated, invalidating any pre-computed client proofs.
+- **Anti-Enumeration Protections**: The public endpoint `POST /api/auth/password-reset/request` returns the identical uniform response (`"If an active account matching the provided identifier exists, password reset instructions have been generated."`) whether the username/email exists or not.
+
+### 7.2 Strict Role Hierarchy Boundaries
+- **Super Administrator (`ROLE_SUPER_ADMIN`)**:
+  - Full authority to create, inspect, deactivate, delete, and reset passwords for `ROLE_ADMIN` and `ROLE_STAFF`.
+  - Self-Lockout Defense: Super Administrators cannot deactivate or delete their own accounts.
+  - Last Super Administrator Guard: Deleting or demoting the last remaining Super Administrator in the system is rejected (`400 Bad Request`).
+- **Administrator (`ROLE_ADMIN`)**:
+  - Authority restricted exclusively to `ROLE_STAFF` accounts.
+  - Strict Boundary: Attempting to reset the password, alter the status, or delete accounts with `ROLE_SUPER_ADMIN` or `ROLE_ADMIN` fails with `403 Forbidden`.
+  - Cannot create `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` accounts.
+- **Staff (`ROLE_STAFF`)**:
+  - Zero access to user administration APIs or administrative UI components.
+
+### 7.3 Super Admin Security Audit Trail Inspection
+- Super Administrators can inspect all system security events via `GET /api/audit-logs` (`@PreAuthorize("hasRole('SUPER_ADMIN')")`).
+- Dedicated Audit Trail UI displays chronological event logs with visual threat and status badges (`auth-success`, `auth-failed`, `auth-admin`, `auth-info`), capturing client IP, operator/target IDs, event types, and structured JSON context.
+
+

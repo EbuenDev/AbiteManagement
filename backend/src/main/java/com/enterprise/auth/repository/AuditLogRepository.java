@@ -12,4 +12,5 @@ import java.util.UUID;
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     Page<AuditLog> findByUserId(UUID userId, Pageable pageable);
     Page<AuditLog> findByEventType(String eventType, Pageable pageable);
+    Page<AuditLog> findAllByOrderByCreatedAtDesc(Pageable pageable);
 }

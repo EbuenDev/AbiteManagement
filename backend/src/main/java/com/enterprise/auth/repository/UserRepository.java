@@ -29,6 +29,13 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("SELECT COUNT(u) > 0 FROM User u JOIN u.roles r WHERE r.code = :roleCode")
     boolean existsByRoleCode(@Param("roleCode") RoleName roleCode);
 
+    @Query("SELECT COUNT(u) FROM User u JOIN u.roles r WHERE r.code = :roleCode")
+    long countByRoleCode(@Param("roleCode") RoleName roleCode);
+
+    Optional<User> findByUsernameIgnoreCase(String username);
+
+    Optional<User> findByEmailIgnoreCase(String email);
+
     @Query("SELECT u FROM User u JOIN u.roles r WHERE r.code = :roleCode")
     Page<User> findAllByRoleCode(@Param("roleCode") RoleName roleCode, Pageable pageable);
 }
